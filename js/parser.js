@@ -203,7 +203,11 @@ function parseTacticalDetails(wb) {
       };
     })
     .filter(Boolean)
-    .filter(r => r.market || r.activityName);
+    .filter(r => r.market || r.activityName)
+    // Remove subtotal/total rows that Excel inserts at the bottom
+    .filter(r => !/^(total|grand total|subtotal|sum)$/i.test(r.market.trim()))
+    // Remove rows with no activity name and no meaningful cashflow (empty/formula rows)
+    .filter(r => r.activityName || r.cashflow > 0);
 }
 
 // ── Master parse entry point ──────────────────────────────
