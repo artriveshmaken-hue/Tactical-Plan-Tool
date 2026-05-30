@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DCT Abu Dhabi — Tactical Plan Analysis Tool</title>
+  <title>DCT Abu Dhabi — Tactical Plan Review 2027</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=IBM+Plex+Sans:ital,wght@0,300;0,400;0,500;0,600;1,300&display=swap" rel="stylesheet">
@@ -13,23 +13,21 @@
 </head>
 <body>
 
-<!-- ═══════════════════════════════════ UPLOAD SCREEN ═══ -->
+<!-- ══════════════════════ UPLOAD SCREEN ══════════════════ -->
 <div id="upload-screen">
   <div class="upload-bg"></div>
   <div class="upload-container">
-
     <div class="upload-logo-row">
       <img src="assets/dct-logo.png" alt="Department of Culture and Tourism — Abu Dhabi" class="upload-logo">
     </div>
-
-    <h1 class="upload-title">Tactical Plan Analysis Tool</h1>
-    <p class="upload-subtitle">Upload the 2026 Baseline Budget and the current Review File to run automated compliance checks across all markets and rules.</p>
+    <h1 class="upload-title">Tactical Plan Review Tool</h1>
+    <p class="upload-subtitle">Upload the approved 2026 final plan and the 2027 WIP plan to run automated compliance checks and comparison analysis across all markets.</p>
 
     <div class="upload-grid">
       <div class="upload-card" id="card-baseline">
-        <div class="upload-card-badge">B</div>
-        <div class="upload-card-title">2026 Baseline Budget</div>
-        <div class="upload-card-desc">Approved final budget — uploaded once per review cycle</div>
+        <div class="upload-card-badge">26</div>
+        <div class="upload-card-title">2026 Final Plan</div>
+        <div class="upload-card-desc">Approved baseline — uploaded once per review cycle</div>
         <label class="upload-btn" for="input-baseline">Choose File
           <input type="file" id="input-baseline" accept=".xlsx,.xls" hidden>
         </label>
@@ -40,9 +38,9 @@
       <div class="upload-vs">vs</div>
 
       <div class="upload-card" id="card-review">
-        <div class="upload-card-badge">R</div>
-        <div class="upload-card-title">Review File</div>
-        <div class="upload-card-desc">Current planning cycle — re-upload for each new review</div>
+        <div class="upload-card-badge">27</div>
+        <div class="upload-card-title">2027 Review File</div>
+        <div class="upload-card-desc">Current WIP — re-upload for each new review round</div>
         <label class="upload-btn" for="input-review">Choose File
           <input type="file" id="input-review" accept=".xlsx,.xls" hidden>
         </label>
@@ -52,24 +50,24 @@
     </div>
 
     <button id="btn-analyze" class="btn-analyze" disabled>▶ Run Analysis</button>
-    <div class="upload-secure">🔒 Files are processed entirely in your browser — no data is sent to any server.</div>
+    <div class="upload-secure">🔒 All processing happens in your browser — no data is uploaded to any server.</div>
   </div>
 
   <div id="loading-overlay" class="loading-overlay hidden">
     <div class="loading-ring"></div>
-    <div class="loading-msg">Parsing data and running rule checks…</div>
+    <div class="loading-msg" id="loading-msg">Parsing Tactical Details…</div>
   </div>
 </div>
 
-<!-- ═══════════════════════════════════ DASHBOARD ═══════ -->
+<!-- ══════════════════════ DASHBOARD ══════════════════════ -->
 <div id="dashboard" class="hidden">
 
   <header class="dash-header">
     <div class="dash-header-left">
       <img src="assets/dct-logo.png" alt="DCT" class="dash-logo">
       <div>
-        <div class="dash-title">Tactical Plan Analysis</div>
-        <div class="dash-sub" id="dash-sub">Review Cycle</div>
+        <div class="dash-title">Tactical Plan Review — 2027 vs 2026</div>
+        <div class="dash-sub" id="dash-sub">Analysis ready</div>
       </div>
     </div>
     <div class="dash-header-right">
@@ -79,13 +77,12 @@
   </header>
 
   <nav class="dash-nav">
-    <button class="nav-tab active" data-view="overview">Overview</button>
-    <button class="nav-tab" data-view="activities">Activities</button>
-    <button class="nav-tab" data-view="jmp">JMP Targets</button>
-    <button class="nav-tab" data-view="cashflow">Cashflow</button>
-    <button class="nav-tab" data-view="variance">Budget Variance</button>
-    <button class="nav-tab" data-view="missions">Missions</button>
-    <button class="nav-tab" data-view="market">Market Deep Dive</button>
+    <button class="nav-tab active"           data-view="overview">Overview</button>
+    <button class="nav-tab"                  data-view="comparison">2026 vs 2027</button>
+    <button class="nav-tab"                  data-view="activities">Activities</button>
+    <button class="nav-tab"                  data-view="cashflow">Cashflow</button>
+    <button class="nav-tab"                  data-view="market">Market Deep Dive</button>
+    <button class="nav-tab"                  data-view="owners">Owners</button>
     <button class="nav-tab nav-tab-violations" data-view="violations">
       Rule Violations <span class="nav-pill" id="nav-viol-count">0</span>
     </button>
@@ -121,9 +118,7 @@
   </div>
 
   <div class="kpi-strip" id="kpi-strip"></div>
-
   <main id="view-area" class="view-area"></main>
-
 </div>
 
 <script src="js/parser.js"></script>

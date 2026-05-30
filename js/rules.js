@@ -1,63 +1,34 @@
 /* ═══════════════════════════════════════════════════════════
-   RULES.JS — Automated rule engine
-   Implements all rules from Tactical Plan Review Rules doc
+   RULES.JS — Rule engine operating on Tactical Details only
 ═══════════════════════════════════════════════════════════ */
 
 const RULE_META = {
-  '1.1': { name: 'Budget increased year-on-year',            severity: 'HIGH'   },
-  '1.2': { name: 'Q3/Q4 cashflow disproportionate',          severity: 'HIGH'   },
-  '1.3': { name: 'Payment milestone after June',             severity: 'MEDIUM' },
-  '1.4': { name: 'New JMP with in-year cashflow',            severity: 'HIGH'   },
-  '1.5': { name: 'Virtual activity with non-zero budget',    severity: 'MEDIUM' },
-  '1.6': { name: 'Admin Miscellaneous budget line present',  severity: 'LOW'    },
-  '1.7': { name: 'Active JMP with cashflow = 0',             severity: 'HIGH'   },
-  '2.2': { name: 'Contract closure in Q3 or Q4',             severity: 'HIGH'   },
-  '2.6': { name: 'JMP missing hotel guest / attendee target',severity: 'MEDIUM' },
-  '3.1': { name: 'Activity Type = "Others"',                 severity: 'HIGH'   },
-  '3.2': { name: 'Duplicate activity name',                  severity: 'MEDIUM' },
-  '3.3': { name: 'Multiple training sessions bundled',       severity: 'MEDIUM' },
-  '3.6': { name: 'Training at Priority 1 / virtual not P3', severity: 'MEDIUM' },
-  '3.8': { name: 'Activity missing KPIs',                    severity: 'HIGH'   },
-  '4.1': { name: 'Mega FAM Trip target < 50 participants',   severity: 'MEDIUM' },
-  '4.3': { name: 'FAM trip outside Ramadan / Early Summer',  severity: 'LOW'    },
-  '5.1': { name: 'Market has < 2 zero-budget Ramadan acts',  severity: 'HIGH'   },
+  '1.1': { name: 'Budget increased vs 2026 baseline',        severity: 'HIGH'   },
+  '1.2': { name: 'Q3/Q4 cashflow dominates (H2 > H1)',       severity: 'HIGH'   },
+  '1.3': { name: 'Payment scheduled after June',             severity: 'MEDIUM' },
+  '1.4': { name: 'New JMP carries in-year cashflow',         severity: 'HIGH'   },
+  '1.5': { name: 'Virtual/Webinar has non-zero budget',      severity: 'MEDIUM' },
+  '1.6': { name: 'Admin Miscellaneous line present',         severity: 'LOW'    },
+  '1.7': { name: 'Signed/Active JMP cashflow = 0',           severity: 'HIGH'   },
+  '2.2': { name: 'JMP contract closes in Q3 or Q4',          severity: 'HIGH'   },
+  '2.6': { name: 'JMP missing attendee/revenue target',      severity: 'MEDIUM' },
+  '3.1': { name: 'Activity type classified as "Others"',     severity: 'HIGH'   },
+  '3.2': { name: 'Duplicate activity name in market',        severity: 'MEDIUM' },
+  '3.3': { name: 'Bundled training sessions',                severity: 'MEDIUM' },
+  '3.6': { name: 'Training at Priority 1 / Webinar not P3', severity: 'MEDIUM' },
+  '3.8': { name: 'Activity missing KPIs (no revenue/att.)', severity: 'HIGH'   },
+  '4.1': { name: 'Mega FAM target < 50 participants',        severity: 'MEDIUM' },
+  '4.3': { name: 'FAM trip outside Ramadan/Early Summer',    severity: 'LOW'    },
+  '5.1': { name: 'Market < 2 zero-budget Ramadan activities',severity: 'HIGH'   },
   '6.1': { name: 'More than 1 sales mission per market',     severity: 'MEDIUM' },
   '6.3': { name: 'Exhibition with no revenue KPI',           severity: 'MEDIUM' },
-  '8.4': { name: 'Targets not based on prior-year data',     severity: 'MEDIUM' },
+  '8.4': { name: 'Activity has no prior-year reference',     severity: 'MEDIUM' },
 };
 
-// Ramadan 2026 window (Mar–Apr)
-const RAM_START = new Date(2026, 2, 1);
-const RAM_END   = new Date(2026, 3, 30);
+// Ramadan 2027 window (approximate — adjust when confirmed)
+const RAM_2027_START = new Date(2027, 1, 18); // Feb 18
+const RAM_2027_END   = new Date(2027, 2, 20); // Mar 20
 
-// ── Activity type helpers ────────────────────────────────
-function isVirtual(name, type) {
-  const t = `${name||''} ${type||''}`.toLowerCase();
-  return /webinar|virtual|online|e-?learning/.test(t);
-}
-function isSalesMission(name, type) {
-  return `${name||''} ${type||''}`.toLowerCase().includes('mission');
-}
-function isFAM(name, type) {
-  return /\bfam\b|familiari[sz]ation/.test(`${name||''} ${type||''}`.toLowerCase());
-}
-function isMegaFAM(name) {
-  return /mega.?fam/i.test(name || '');
-}
-function isTraining(name, type) {
-  return /training|workshop/.test(`${name||''} ${type||''}`.toLowerCase());
-}
-function isExhibition(name, type) {
-  return /exhibition|exhibit|\bitb\b|\bwtm\b|\batm\b/.test(`${name||''} ${type||''}`.toLowerCase());
-}
-function isJMP(name, type, status) {
-  return /jmp|joint marketing/.test(`${name||''} ${type||''}`.toLowerCase()) || !!(status && status.trim());
-}
-function inRamadan(d) {
-  return d && d >= RAM_START && d <= RAM_END;
-}
-
-// ── Violation factory ────────────────────────────────────
 function V(ruleId, market, item, detail) {
   const meta = RULE_META[ruleId] || { name: ruleId, severity: 'LOW' };
   return {
@@ -67,242 +38,254 @@ function V(ruleId, market, item, detail) {
   };
 }
 
-// ── Monthly cashflow helpers ─────────────────────────────
-function sumMonthly(monthly) {
-  return MONTHS.reduce((s, m) => s + (monthly[m] || 0), 0);
+// ── Monthly helpers ───────────────────────────────────────
+function sumM(monthly) {
+  return MONTH_LABELS.reduce((s,m) => s + (monthly[m]||0), 0);
 }
-function q1(m) { return (m.Jan||0)+(m.Feb||0)+(m.Mar||0); }
-function q2(m) { return (m.Apr||0)+(m.May||0)+(m.Jun||0); }
-function q3(m) { return (m.Jul||0)+(m.Aug||0)+(m.Sep||0); }
-function q4(m) { return (m.Oct||0)+(m.Nov||0)+(m.Dec||0); }
+function H1(m) { return (m.Jan||0)+(m.Feb||0)+(m.Mar||0)+(m.Apr||0)+(m.May||0)+(m.Jun||0); }
+function H2(m) { return (m.Jul||0)+(m.Aug||0)+(m.Sep||0)+(m.Oct||0)+(m.Nov||0)+(m.Dec||0); }
 
-// ── MAIN RULE RUNNER ────────────────────────────────────
-function runRules(baselineData, reviewData) {
+// ── Activity type helpers ─────────────────────────────────
+function isWebinar(a)    { return /webinar|virtual|online/i.test(a.activityType+' '+a.activityName); }
+function isNewJMP(a)     { return /^new jmp$/i.test(a.activityType); }
+function isExistingJMP(a){ return /^existing jmp$/i.test(a.activityType); }
+function isJMP(a)        { return /jmp/i.test(a.activityType); }
+function isMission(a)    { return /mission/i.test(a.activityType+' '+a.activityName); }
+function isFAM(a)        { return /\bfam\b/i.test(a.activityType+' '+a.activityName); }
+function isMegaFAM(a)    { return /mega.?fam/i.test(a.activityType+' '+a.activityName); }
+function isTraining(a)   { return /training|workshop/i.test(a.activityType+' '+a.activityName); }
+function isExhibition(a) { return /exhibition|exhibit|\bitb\b|\bwtm\b|\batm\b/i.test(a.activityType+' '+a.activityName+' '+(a.market||'')); }
+function inRamadan27(d)  { return d && d >= RAM_2027_START && d <= RAM_2027_END; }
+
+// ── MAIN RULE RUNNER ──────────────────────────────────────
+function runRules(baseline26, review27) {
   const violations = [];
-  const acts    = (reviewData.tacticalDetails || []);
-  const budget  = (reviewData.budget          || []);
-  const tactical= (reviewData.tactical        || []);
-  const jmpTgts = (reviewData.jmpTargets      || []);
+  const acts26 = baseline26.activities || [];
+  const acts27 = review27.activities   || [];
 
-  // ── 1.1 Budget increased vs baseline ────────────────────
-  if (baselineData && baselineData.budget && reviewData.budget) {
-    const base = {};
-    baselineData.budget.forEach(r => {
-      const k = `${r.projectName}|${r.taskName}`;
-      base[k] = (base[k] || 0) + (r.budget2026 || r.baseline || 0);
-    });
-    const rev = {};
-    reviewData.budget.forEach(r => {
-      const k = `${r.projectName}|${r.taskName}`;
-      rev[k] = (rev[k] || 0) + (r.budget2026 || r.baseline || 0);
-    });
-    Object.entries(rev).forEach(([k, val]) => {
-      const bv = base[k] || 0;
-      if (val > bv && bv > 0) {
-        const [mkt, task] = k.split('|');
-        violations.push(V('1.1', mkt, task,
-          `Budget rose from ${fmtAED(bv)} to ${fmtAED(val)} (+${fmtAED(val-bv)})`));
-      }
-    });
-  }
-
-  // ── 1.2 Q3/Q4 disproportionate per market ───────────────
-  const cfByMkt = {};
-  budget.forEach(r => {
-    const m = r.projectName || 'Unknown';
-    if (!cfByMkt[m]) cfByMkt[m] = { Jan:0,Feb:0,Mar:0,Apr:0,May:0,Jun:0,Jul:0,Aug:0,Sep:0,Oct:0,Nov:0,Dec:0 };
-    MONTHS.forEach(mo => { cfByMkt[m][mo] += r.monthly[mo] || 0; });
+  // Build 2026 budget by market+name for comparison
+  const budget26 = {};
+  acts26.forEach(a => {
+    const k = `${a.market}||${a.activityName.toLowerCase()}`;
+    budget26[k] = (budget26[k] || 0) + a.cashflow;
   });
-  Object.entries(cfByMkt).forEach(([mkt, mo]) => {
-    const H1 = q1(mo)+q2(mo), H2 = q3(mo)+q4(mo), tot = H1+H2;
-    if (tot > 0 && H2 > H1) {
-      const pct = (H2/tot*100).toFixed(1);
+
+  // ── 1.1 Budget increased vs 2026 ─────────────────────────
+  acts27.forEach(a => {
+    const k = `${a.market}||${a.activityName.toLowerCase()}`;
+    const prev = budget26[k] || 0;
+    if (a.cashflow > prev && prev > 0) {
+      violations.push(V('1.1', a.market, a.activityName,
+        `Cashflow rose from ${fmtAED(prev)} (2026) to ${fmtAED(a.cashflow)} (2027) — increase of ${fmtAED(a.cashflow - prev)}`));
+    }
+  });
+
+  // ── 1.2 H2 > H1 per market ───────────────────────────────
+  const mktCF = {};
+  acts27.forEach(a => {
+    if (!mktCF[a.market]) mktCF[a.market] = { Jan:0,Feb:0,Mar:0,Apr:0,May:0,Jun:0,Jul:0,Aug:0,Sep:0,Oct:0,Nov:0,Dec:0 };
+    MONTH_LABELS.forEach(m => { mktCF[a.market][m] += a.monthly[m]||0; });
+  });
+  Object.entries(mktCF).forEach(([mkt, mo]) => {
+    const h1 = H1(mo), h2 = H2(mo), tot = h1 + h2;
+    if (tot > 0 && h2 > h1) {
       violations.push(V('1.2', mkt, 'Cashflow Distribution',
-        `Q3+Q4 = ${pct}% of annual spend (H1 = ${(H1/tot*100).toFixed(1)}%). Majority must fall in Q1/Q2.`));
+        `H2 = ${fmtAED(h2)} (${(h2/tot*100).toFixed(1)}%) vs H1 = ${fmtAED(h1)} (${(h1/tot*100).toFixed(1)}%). Majority must fall in H1.`));
     }
-    // 1.3 — payment after June
-    const late = (mo.Jul||0)+(mo.Aug||0)+(mo.Sep||0)+(mo.Oct||0)+(mo.Nov||0)+(mo.Dec||0);
-    if (late > 0 && tot > 0 && late/tot > 0.1) {
+    // 1.3 — any Oct/Nov/Dec cashflow
+    const late = (mo.Oct||0)+(mo.Nov||0)+(mo.Dec||0);
+    if (late > 0) {
       violations.push(V('1.3', mkt, 'Late Payment',
-        `Payments scheduled Jul–Dec = ${fmtAED(late)} (${(late/tot*100).toFixed(1)}%). Last permitted month is June.`));
+        `Cashflow in Oct–Dec = ${fmtAED(late)}. Payments should not be scheduled after June.`));
     }
   });
 
-  // ── 1.4 New JMP with in-year cashflow ───────────────────
-  acts.filter(a => /new/i.test(a.jmpStatus || '')).forEach(a => {
-    const cf = sumMonthly(a.monthly);
+  // ── 1.4 New JMP with in-year cashflow ─────────────────────
+  acts27.filter(isNewJMP).forEach(a => {
+    const cf = sumM(a.monthly);
     if (cf > 0) violations.push(V('1.4', a.market, a.activityName,
-      `New JMP carries in-year cashflow of ${fmtAED(cf)}. Must be zero.`));
+      `New JMP has in-year cashflow of ${fmtAED(cf)}. New JMPs must not carry cashflow in the same year.`));
   });
 
-  // ── 1.5 Virtual activity non-zero budget ────────────────
-  acts.filter(a => isVirtual(a.activityName, a.activityType) && a.budget > 0).forEach(a => {
-    violations.push(V('1.5', a.market, a.activityName,
-      `Virtual/webinar activity has budget ${fmtAED(a.budget)}. Must be zero.`));
+  // ── 1.5 Webinar / virtual with budget > 0 ────────────────
+  acts27.filter(isWebinar).forEach(a => {
+    if (a.cashflow > 0) violations.push(V('1.5', a.market, a.activityName,
+      `Webinar/virtual activity has cashflow ${fmtAED(a.cashflow)}. Must be zero-cost.`));
   });
 
-  // ── 1.6 Admin Miscellaneous ──────────────────────────────
-  [...acts, ...tactical].forEach(r => {
-    const nm = (r.activityName || r.taskName || r.financeTask || '').toLowerCase();
-    if (nm.includes('admin misc') || nm.includes('miscellaneous')) {
-      violations.push(V('1.6', r.market || r.projectName, r.activityName || r.taskName,
-        'Admin Miscellaneous line must be removed. Replace with specific task codes.'));
+  // ── 1.6 Admin Miscellaneous ───────────────────────────────
+  acts27.forEach(a => {
+    if (/admin.misc|miscellaneous/i.test(a.activityName + ' ' + a.activityType)) {
+      violations.push(V('1.6', a.market, a.activityName,
+        'Admin Miscellaneous line must be removed. Use specific task codes.'));
     }
   });
 
-  // ── 1.7 Active JMP cashflow = 0 ─────────────────────────
-  acts.filter(a => isJMP(a.activityName, a.activityType, a.jmpStatus)).forEach(a => {
-    const cf = sumMonthly(a.monthly);
-    const st = (a.jmpStatus || '').toLowerCase();
-    if (cf === 0 && a.budget === 0 && (st.includes('existing') || st.includes('signed'))) {
+  // ── 1.7 Existing JMP with cashflow = 0 ───────────────────
+  acts27.filter(isExistingJMP).forEach(a => {
+    if (a.cashflow === 0 && a.locked === 'Locked') {
       violations.push(V('1.7', a.market, a.activityName,
-        'Active/Signed JMP has cashflow = 0. Investigate — may be missing contract value.'));
+        'Locked Existing JMP has cashflow = 0. Contract value may be missing.'));
     }
   });
 
-  // ── 2.2 Contract closure in Q3/Q4 ───────────────────────
-  acts.filter(a => isJMP(a.activityName, a.activityType, a.jmpStatus)).forEach(a => {
+  // ── 2.2 JMP contract closes in Q3/Q4 ─────────────────────
+  acts27.filter(isJMP).forEach(a => {
     if (a.endDate && a.endDate.getMonth() >= 6) {
+      const qtr = a.endDate.getMonth() >= 9 ? 'Q4' : 'Q3';
       violations.push(V('2.2', a.market, a.activityName,
-        `JMP contract ends ${fmtDate(a.endDate)} (${a.endDate.getMonth()>=9?'Q4':'Q3'}). Must close in Q1 or Q2.`));
+        `JMP end date is ${fmtDate(a.endDate)} (${qtr}). JMP contracts must close in Q1 or Q2.`));
     }
   });
 
-  // ── 2.6 JMP missing targets ─────────────────────────────
-  acts.filter(a => isJMP(a.activityName, a.activityType, a.jmpStatus)).forEach(a => {
+  // ── 2.6 JMP missing targets ───────────────────────────────
+  acts27.filter(isJMP).forEach(a => {
     if (!a.attendees && !a.revenue) {
       violations.push(V('2.6', a.market, a.activityName,
-        'JMP is missing hotel guest / attendee targets. All JMPs must have numeric targets.'));
+        'JMP has no attendee count and no revenue target. Both required.'));
     }
   });
 
-  // ── 3.1 Activity Type = Others ──────────────────────────
-  acts.filter(a => /^others?$/i.test((a.activityType || '').trim())).forEach(a => {
+  // ── 3.1 ActivityType = Others ─────────────────────────────
+  acts27.filter(a => /^others$/i.test(a.activityType)).forEach(a => {
     violations.push(V('3.1', a.market, a.activityName,
-      `Activity type is "${a.activityType}". Must be reclassified to a specific valid type.`));
+      `Type is "Others". Must be reclassified to a valid specific type.`));
   });
 
-  // ── 3.2 Duplicate activity names per market ─────────────
-  const actsByMkt = {};
-  acts.forEach(a => {
-    const m = a.market || 'Unknown';
-    if (!actsByMkt[m]) actsByMkt[m] = {};
-    const key = (a.activityName || '').toLowerCase().trim();
-    if (key) {
-      if (actsByMkt[m][key]) {
-        violations.push(V('3.2', m, a.activityName,
-          `Duplicate activity name found in ${m}. Merge or remove one entry.`));
-      }
-      actsByMkt[m][key] = true;
+  // ── 3.2 Duplicate activity names per market ───────────────
+  const seen = {};
+  acts27.forEach(a => {
+    const k = `${a.market}||${a.activityName.toLowerCase().trim()}`;
+    if (seen[k]) {
+      violations.push(V('3.2', a.market, a.activityName,
+        `Duplicate activity name in ${a.market}. Each activity must have a unique name.`));
     }
+    seen[k] = true;
   });
 
-  // ── 3.3 Multiple training sessions bundled ───────────────
-  acts.filter(a => isTraining(a.activityName, a.activityType)).forEach(a => {
-    const nm = (a.activityName || '').toLowerCase();
-    if (/annual|multiple|series|q1.*q2|q2.*q3|sessions|throughout/.test(nm)) {
+  // ── 3.3 Bundled training sessions ────────────────────────
+  acts27.filter(isTraining).forEach(a => {
+    if (/annual|multiple|series|throughout|q[1-4].*q[1-4]|sessions/i.test(a.activityName)) {
       violations.push(V('3.3', a.market, a.activityName,
-        'Training entry appears to bundle multiple sessions. Each session must be a separate activity.'));
+        'Training appears to bundle multiple sessions. Each session must be a separate line.'));
     }
   });
 
-  // ── 3.6 Training Priority 1 / virtual not Priority 3 ────
-  acts.filter(a => isTraining(a.activityName, a.activityType) && a.priority === 1).forEach(a => {
-    violations.push(V('3.6', a.market, a.activityName,
-      `Training activity is Priority 1. Training must not be Priority 1.`));
+  // ── 3.6 Training P1 / Webinar not P3 ─────────────────────
+  acts27.filter(isTraining).forEach(a => {
+    if (a.priority === 1) violations.push(V('3.6', a.market, a.activityName,
+      `Training is Priority 1. Training activities must be Priority 2 or 3.`));
   });
-  acts.filter(a => isVirtual(a.activityName, a.activityType) && a.priority && a.priority !== 3).forEach(a => {
-    violations.push(V('3.6', a.market, a.activityName,
-      `Virtual activity is Priority ${a.priority}. Virtual activities must be Priority 3.`));
+  acts27.filter(isWebinar).forEach(a => {
+    if (a.priority && a.priority !== 3) violations.push(V('3.6', a.market, a.activityName,
+      `Webinar is Priority ${a.priority}. Webinars/virtual activities must be Priority 3.`));
   });
 
-  // ── 3.8 Activity missing KPIs ───────────────────────────
-  acts.forEach(a => {
-    if (!a.revenue && !a.attendees) {
+  // ── 3.8 Missing KPIs ─────────────────────────────────────
+  acts27.forEach(a => {
+    if (!a.revenue && !a.attendees && !isWebinar(a) && a.activityType !== 'Admin') {
       violations.push(V('3.8', a.market, a.activityName,
-        'Activity has no revenue figure and no attendee/KPI target.'));
+        'No revenue figure and no attendee/KPI target. All activities must have at least one KPI.'));
     }
   });
 
-  // ── 4.1 Mega FAM Trip < 50 participants ─────────────────
-  acts.filter(a => isMegaFAM(a.activityName)).forEach(a => {
-    if (a.attendees < 50) {
-      violations.push(V('4.1', a.market, a.activityName,
-        `Mega FAM Trip targets ${a.attendees || 0} participants. Minimum is 50.`));
-    }
+  // ── 4.1 Mega FAM < 50 participants ───────────────────────
+  acts27.filter(isMegaFAM).forEach(a => {
+    if (a.attendees < 50) violations.push(V('4.1', a.market, a.activityName,
+      `Mega FAM targets ${a.attendees} participants. Minimum required is 50.`));
   });
 
-  // ── 4.3 FAM trip outside Ramadan / Early Summer ─────────
-  acts.filter(a => isFAM(a.activityName, a.activityType)).forEach(a => {
+  // ── 4.3 FAM outside Ramadan / Early Summer ───────────────
+  acts27.filter(isFAM).filter(a=>!isMegaFAM(a)).forEach(a => {
     if (a.startDate) {
-      const mo = a.startDate.getMonth(); // 0-based
-      if (mo < 2 || mo > 5) { // outside Mar(2)–Jun(5)
+      const mo = a.startDate.getMonth();
+      if (mo < 1 || mo > 5) { // outside Feb–Jun
         violations.push(V('4.3', a.market, a.activityName,
-          `FAM trip starts ${fmtDate(a.startDate)} — outside Ramadan/Early Summer window (Mar–Jun).`));
+          `FAM trip starts ${fmtDate(a.startDate)} — outside Ramadan/Early Summer window (Feb–Jun).`));
       }
     }
   });
 
-  // ── 5.1 Market < 2 zero-budget Ramadan activities ────────
-  const markets = [...new Set(acts.map(a => a.market).filter(Boolean))];
-  markets.forEach(mkt => {
-    const mActs = acts.filter(a => a.market === mkt);
+  // ── 5.1 < 2 zero-budget Ramadan activities per market ────
+  const markets27 = [...new Set(acts27.map(a=>a.market).filter(Boolean))];
+  markets27.forEach(mkt => {
+    const mActs = acts27.filter(a => a.market === mkt);
     const ramZero = mActs.filter(a => {
-      const inRam = inRamadan(a.startDate) || inRamadan(a.endDate);
-      return inRam && a.budget === 0;
+      const inR = inRamadan27(a.startDate) || inRamadan27(a.endDate);
+      return inR && a.cashflow === 0;
     });
     if (ramZero.length < 2) {
       violations.push(V('5.1', mkt, 'Ramadan Planning',
-        `Only ${ramZero.length} zero-budget Ramadan activity found (minimum 2 required). Webinars/virtual sessions preferred.`));
+        `Only ${ramZero.length} zero-budget Ramadan activit${ramZero.length===1?'y':'ies'} found. Minimum 2 required (webinars/virtual preferred).`));
     }
   });
 
-  // ── 6.1 More than 1 sales mission ───────────────────────
-  markets.forEach(mkt => {
-    const missions = acts.filter(a => a.market === mkt && isSalesMission(a.activityName, a.activityType));
-    if (missions.length > 1) {
-      violations.push(V('6.1', mkt, `${missions.length} Sales Missions`,
-        `Market has ${missions.length} sales missions. Only 1 permitted per country per year.`));
-    }
+  // ── 6.1 > 1 sales mission per market ─────────────────────
+  markets27.forEach(mkt => {
+    const missions = acts27.filter(a => a.market === mkt && isMission(a));
+    if (missions.length > 1) violations.push(V('6.1', mkt,
+      `${missions.length} missions`,
+      `${missions.length} sales mission entries found. Only 1 mission permitted per market per year.`));
   });
 
-  // ── 6.3 Exhibition with no revenue KPI ──────────────────
-  acts.filter(a => isExhibition(a.activityName, a.activityType)).forEach(a => {
-    if (!a.revenue) {
-      violations.push(V('6.3', a.market, a.activityName,
-        'Exhibition participation has no revenue KPI. Must be justified by expected returns.'));
-    }
+  // ── 6.3 Exhibition with no revenue KPI ───────────────────
+  acts27.filter(isExhibition).forEach(a => {
+    if (!a.revenue) violations.push(V('6.3', a.market, a.activityName,
+      'Exhibition has no revenue KPI. Participation must be justified by expected returns.'));
   });
 
-  // ── 8.4 JMP targets with no prior-year reference ─────────
-  jmpTgts.forEach(j => {
-    if (j.io2026 > 0 && !j.target2025 && !j.target2024) {
-      violations.push(V('8.4', j.market, 'JMP Target',
-        `${j.market} has a 2026 IO target of ${fmtNum(j.io2026)} but no prior-year reference data.`));
-    }
-    // Flag markets with 0 target but showing budget
-    if (j.io2026 === 0) {
-      const hasBudget = budget.some(b => b.projectName === j.market && (b.budget2026 || b.baseline) > 0);
-      if (hasBudget) {
-        violations.push(V('8.4', j.market, 'Zero Target / Active Budget',
-          `Market shows no 2026 visitor target (0) but has active budget. JMP assessment may be missing.`));
-      }
+  // ── 8.4 New activity with no 2026 equivalent ─────────────
+  acts27.forEach(a => {
+    const k = `${a.market}||${a.activityName.toLowerCase()}`;
+    if (!budget26[k] && a.cashflow > 500000) {
+      violations.push(V('8.4', a.market, a.activityName,
+        `New activity with ${fmtAED(a.cashflow)} cashflow has no 2026 equivalent. Ensure targets are based on prior-year data.`));
     }
   });
 
   return violations;
 }
 
-// ── Summarise violations ─────────────────────────────────
+// ── Summary ───────────────────────────────────────────────
 function summarise(violations) {
   const counts = { HIGH: 0, MEDIUM: 0, LOW: 0 };
-  violations.forEach(v => { if (!v.justified) counts[v.severity] = (counts[v.severity] || 0) + 1; });
+  const unjustified = violations.filter(v => !v.justified);
+  unjustified.forEach(v => { counts[v.severity] = (counts[v.severity]||0)+1; });
   const byMarket = {};
-  violations.filter(v => !v.justified).forEach(v => {
-    byMarket[v.market] = (byMarket[v.market] || 0) + 1;
+  unjustified.forEach(v => { byMarket[v.market] = (byMarket[v.market]||0)+1; });
+  const topMarkets = Object.entries(byMarket).sort((a,b)=>b[1]-a[1]).slice(0,5)
+    .map(([market,count]) => ({ market, count }));
+  return { counts, topMarkets, total: unjustified.length };
+}
+
+// ── Comparison: 2026 vs 2027 ──────────────────────────────
+function compareYears(baseline26, review27) {
+  const acts26 = baseline26.activities || [];
+  const acts27 = review27.activities   || [];
+
+  const map26 = {};
+  acts26.forEach(a => { map26[`${a.market}||${a.activityName.toLowerCase()}`] = a; });
+  const map27 = {};
+  acts27.forEach(a => { map27[`${a.market}||${a.activityName.toLowerCase()}`] = a; });
+
+  const added   = acts27.filter(a => !map26[`${a.market}||${a.activityName.toLowerCase()}`]);
+  const removed = acts26.filter(a => !map27[`${a.market}||${a.activityName.toLowerCase()}`]);
+  const changed = [];
+
+  Object.entries(map27).forEach(([k, a27]) => {
+    const a26 = map26[k];
+    if (!a26) return;
+    const changes = [];
+    if (Math.abs(a27.cashflow - a26.cashflow) > 1000)
+      changes.push({ field:'Cashflow', from: a26.cashflow, to: a27.cashflow });
+    if (a27.priority !== a26.priority && a27.priority && a26.priority)
+      changes.push({ field:'Priority', from: a26.priority, to: a27.priority });
+    if (a27.activityType !== a26.activityType)
+      changes.push({ field:'Type', from: a26.activityType, to: a27.activityType });
+    if (a27.locked !== a26.locked)
+      changes.push({ field:'Lock', from: a26.locked, to: a27.locked });
+    if (changes.length) changed.push({ activity: a27, changes });
   });
-  const topMarkets = Object.entries(byMarket)
-    .sort((a,b) => b[1]-a[1]).slice(0,5)
-    .map(([m,c]) => ({ market: m, count: c }));
-  return { counts, topMarkets, total: violations.filter(v=>!v.justified).length };
+
+  return { added, removed, changed };
 }
