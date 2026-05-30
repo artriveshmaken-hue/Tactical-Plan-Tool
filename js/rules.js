@@ -1,11 +1,15 @@
 /* ═══════════════════════════════════════════════════════════
    RULES.JS — Rule engine operating on Tactical Details only
+   Thresholds calibrated against real 2026/2027 data:
+   - Both years are naturally H2-heavy (~68% H2) — flag only >75%
+   - Rule 1.1 flags only increases >10% AND >50K AED
+   - Rule 1.3 flags only if Oct-Dec > 20% of market total
 ═══════════════════════════════════════════════════════════ */
 
 const RULE_META = {
-  '1.1': { name: 'Budget increased vs 2026 baseline',        severity: 'HIGH'   },
-  '1.2': { name: 'Q3/Q4 cashflow dominates (H2 > H1)',       severity: 'HIGH'   },
-  '1.3': { name: 'Payment scheduled after June',             severity: 'MEDIUM' },
+  '1.1': { name: 'Budget increased >10% vs 2026 baseline',   severity: 'HIGH'   },
+  '1.2': { name: 'H2 cashflow > 75% of annual (extreme)',    severity: 'HIGH'   },
+  '1.3': { name: 'Oct–Dec spend > 20% of market total',      severity: 'MEDIUM' },
   '1.4': { name: 'New JMP carries in-year cashflow',         severity: 'HIGH'   },
   '1.5': { name: 'Virtual/Webinar has non-zero budget',      severity: 'MEDIUM' },
   '1.6': { name: 'Admin Miscellaneous line present',         severity: 'LOW'    },
@@ -22,12 +26,21 @@ const RULE_META = {
   '5.1': { name: 'Market < 2 zero-budget Ramadan activities',severity: 'HIGH'   },
   '6.1': { name: 'More than 1 sales mission per market',     severity: 'MEDIUM' },
   '6.3': { name: 'Exhibition with no revenue KPI',           severity: 'MEDIUM' },
-  '8.4': { name: 'Activity has no prior-year reference',     severity: 'MEDIUM' },
+  '8.4': { name: 'New high-value activity with no 2026 ref', severity: 'MEDIUM' },
 };
 
-// Ramadan 2027 window (approximate — adjust when confirmed)
+// Ramadan 2027 window (approximate — update when confirmed)
 const RAM_2027_START = new Date(2027, 1, 18); // Feb 18
 const RAM_2027_END   = new Date(2027, 2, 20); // Mar 20
+
+// ── Thresholds (calibrated to real data) ─────────────────
+const THRESH = {
+  BUDGET_INCREASE_PCT:  10,      // Rule 1.1: flag if increase > 10%
+  BUDGET_INCREASE_AED:  50000,   // Rule 1.1: AND absolute increase > 50K AED
+  H2_EXTREME_PCT:       75,      // Rule 1.2: flag only if H2 > 75% (not just H2>H1)
+  LATE_PAYMENT_PCT:     20,      // Rule 1.3: flag if Oct-Dec > 20% of market total
+  NEW_ACT_MIN_CF:       500000,  // Rule 8.4: only flag new acts with CF > 500K
+};
 
 function V(ruleId, market, item, detail) {
   const meta = RULE_META[ruleId] || { name: ruleId, severity: 'LOW' };
@@ -42,8 +55,15 @@ function V(ruleId, market, item, detail) {
 function sumM(monthly) {
   return MONTH_LABELS.reduce((s,m) => s + (monthly[m]||0), 0);
 }
-function H1(m) { return (m.Jan||0)+(m.Feb||0)+(m.Mar||0)+(m.Apr||0)+(m.May||0)+(m.Jun||0); }
-function H2(m) { return (m.Jul||0)+(m.Aug||0)+(m.Sep||0)+(m.Oct||0)+(m.Nov||0)+(m.Dec||0); }
+function H1sum(m) {
+  return (m.Jan||0)+(m.Feb||0)+(m.Mar||0)+(m.Apr||0)+(m.May||0)+(m.Jun||0);
+}
+function H2sum(m) {
+  return (m.Jul||0)+(m.Aug||0)+(m.Sep||0)+(m.Oct||0)+(m.Nov||0)+(m.Dec||0);
+}
+function latePay(m) {
+  return (m.Oct||0)+(m.Nov||0)+(m.Dec||0);
+}
 
 // ── Activity type helpers ─────────────────────────────────
 function isWebinar(a)    { return /webinar|virtual|online/i.test(a.activityType+' '+a.activityName); }
@@ -63,40 +83,50 @@ function runRules(baseline26, review27) {
   const acts26 = baseline26.activities || [];
   const acts27 = review27.activities   || [];
 
-  // Build 2026 budget by market+name for comparison
-  const budget26 = {};
+  // Build 2026 lookup by market+name
+  const map26 = {};
   acts26.forEach(a => {
-    const k = `${a.market}||${a.activityName.toLowerCase()}`;
-    budget26[k] = (budget26[k] || 0) + a.cashflow;
+    const k = `${a.market}||${a.activityName.toLowerCase().trim()}`;
+    map26[k] = (map26[k] || 0) + a.cashflow;
   });
 
-  // ── 1.1 Budget increased vs 2026 ─────────────────────────
+  // ── 1.1 Budget increased >10% AND >50K vs 2026 ──────────
   acts27.forEach(a => {
-    const k = `${a.market}||${a.activityName.toLowerCase()}`;
-    const prev = budget26[k] || 0;
-    if (a.cashflow > prev && prev > 0) {
-      violations.push(V('1.1', a.market, a.activityName,
-        `Cashflow rose from ${fmtAED(prev)} (2026) to ${fmtAED(a.cashflow)} (2027) — increase of ${fmtAED(a.cashflow - prev)}`));
+    const k = `${a.market}||${a.activityName.toLowerCase().trim()}`;
+    const prev = map26[k] || 0;
+    if (prev > 0 && a.cashflow > prev) {
+      const pct = ((a.cashflow - prev) / prev) * 100;
+      const abs = a.cashflow - prev;
+      if (pct > THRESH.BUDGET_INCREASE_PCT && abs > THRESH.BUDGET_INCREASE_AED) {
+        violations.push(V('1.1', a.market, a.activityName,
+          `Cashflow: ${fmtAED(prev)} (2026) → ${fmtAED(a.cashflow)} (2027). Increase: ${fmtAED(abs)} (+${pct.toFixed(1)}%). Threshold: >${THRESH.BUDGET_INCREASE_PCT}% AND >${fmtAED(THRESH.BUDGET_INCREASE_AED)}.`));
+      }
     }
   });
 
-  // ── 1.2 H2 > H1 per market ───────────────────────────────
+  // ── 1.2 H2 > 75% of annual per market (extreme concentration) ──
+  // Note: both 2026 and 2027 are naturally ~68% H2 across the portfolio.
+  // Rule only fires when a specific market is extremely back-loaded (>75%).
   const mktCF = {};
   acts27.forEach(a => {
     if (!mktCF[a.market]) mktCF[a.market] = { Jan:0,Feb:0,Mar:0,Apr:0,May:0,Jun:0,Jul:0,Aug:0,Sep:0,Oct:0,Nov:0,Dec:0 };
     MONTH_LABELS.forEach(m => { mktCF[a.market][m] += a.monthly[m]||0; });
   });
+
   Object.entries(mktCF).forEach(([mkt, mo]) => {
-    const h1 = H1(mo), h2 = H2(mo), tot = h1 + h2;
-    if (tot > 0 && h2 > h1) {
+    const h1 = H1sum(mo), h2 = H2sum(mo), tot = h1 + h2;
+    if (tot < 50000) return; // skip near-zero markets
+    const h2pct = (h2 / tot) * 100;
+    if (h2pct > THRESH.H2_EXTREME_PCT) {
       violations.push(V('1.2', mkt, 'Cashflow Distribution',
-        `H2 = ${fmtAED(h2)} (${(h2/tot*100).toFixed(1)}%) vs H1 = ${fmtAED(h1)} (${(h1/tot*100).toFixed(1)}%). Majority must fall in H1.`));
+        `H2 = ${h2pct.toFixed(1)}% of annual spend (${fmtAED(h2)}). Extreme back-loading — threshold is >${THRESH.H2_EXTREME_PCT}%. Note: portfolio average is ~68% H2.`));
     }
-    // 1.3 — any Oct/Nov/Dec cashflow
-    const late = (mo.Oct||0)+(mo.Nov||0)+(mo.Dec||0);
-    if (late > 0) {
-      violations.push(V('1.3', mkt, 'Late Payment',
-        `Cashflow in Oct–Dec = ${fmtAED(late)}. Payments should not be scheduled after June.`));
+
+    // ── 1.3 Oct–Dec > 20% of market total ─────────────────
+    const late = latePay(mo);
+    if (tot > 0 && (late / tot) * 100 > THRESH.LATE_PAYMENT_PCT) {
+      violations.push(V('1.3', mkt, 'Late Payment (Oct–Dec)',
+        `Oct–Dec = ${fmtAED(late)} (${(late/tot*100).toFixed(1)}% of market total). Threshold: >${THRESH.LATE_PAYMENT_PCT}%. Payments should not extend into Q4.`));
     }
   });
 
@@ -121,7 +151,7 @@ function runRules(baseline26, review27) {
     }
   });
 
-  // ── 1.7 Existing JMP with cashflow = 0 ───────────────────
+  // ── 1.7 Existing/Locked JMP with cashflow = 0 ────────────
   acts27.filter(isExistingJMP).forEach(a => {
     if (a.cashflow === 0 && a.locked === 'Locked') {
       violations.push(V('1.7', a.market, a.activityName,
@@ -196,10 +226,10 @@ function runRules(baseline26, review27) {
   });
 
   // ── 4.3 FAM outside Ramadan / Early Summer ───────────────
-  acts27.filter(isFAM).filter(a=>!isMegaFAM(a)).forEach(a => {
+  acts27.filter(isFAM).filter(a => !isMegaFAM(a)).forEach(a => {
     if (a.startDate) {
       const mo = a.startDate.getMonth();
-      if (mo < 1 || mo > 5) { // outside Feb–Jun
+      if (mo < 1 || mo > 5) {
         violations.push(V('4.3', a.market, a.activityName,
           `FAM trip starts ${fmtDate(a.startDate)} — outside Ramadan/Early Summer window (Feb–Jun).`));
       }
@@ -207,7 +237,7 @@ function runRules(baseline26, review27) {
   });
 
   // ── 5.1 < 2 zero-budget Ramadan activities per market ────
-  const markets27 = [...new Set(acts27.map(a=>a.market).filter(Boolean))];
+  const markets27 = [...new Set(acts27.map(a => a.market).filter(Boolean))];
   markets27.forEach(mkt => {
     const mActs = acts27.filter(a => a.market === mkt);
     const ramZero = mActs.filter(a => {
@@ -234,12 +264,12 @@ function runRules(baseline26, review27) {
       'Exhibition has no revenue KPI. Participation must be justified by expected returns.'));
   });
 
-  // ── 8.4 New activity with no 2026 equivalent ─────────────
+  // ── 8.4 New high-value activity with no 2026 equivalent ──
   acts27.forEach(a => {
-    const k = `${a.market}||${a.activityName.toLowerCase()}`;
-    if (!budget26[k] && a.cashflow > 500000) {
+    const k = `${a.market}||${a.activityName.toLowerCase().trim()}`;
+    if (!map26[k] && a.cashflow > THRESH.NEW_ACT_MIN_CF) {
       violations.push(V('8.4', a.market, a.activityName,
-        `New activity with ${fmtAED(a.cashflow)} cashflow has no 2026 equivalent. Ensure targets are based on prior-year data.`));
+        `New activity with ${fmtAED(a.cashflow)} cashflow has no 2026 equivalent. Ensure targets are based on prior-year data or a clear rationale is documented.`));
     }
   });
 
@@ -253,23 +283,24 @@ function summarise(violations) {
   unjustified.forEach(v => { counts[v.severity] = (counts[v.severity]||0)+1; });
   const byMarket = {};
   unjustified.forEach(v => { byMarket[v.market] = (byMarket[v.market]||0)+1; });
-  const topMarkets = Object.entries(byMarket).sort((a,b)=>b[1]-a[1]).slice(0,5)
+  const topMarkets = Object.entries(byMarket)
+    .sort((a,b) => b[1]-a[1]).slice(0,5)
     .map(([market,count]) => ({ market, count }));
   return { counts, topMarkets, total: unjustified.length };
 }
 
-// ── Comparison: 2026 vs 2027 ──────────────────────────────
+// ── Year-on-year comparison ───────────────────────────────
 function compareYears(baseline26, review27) {
   const acts26 = baseline26.activities || [];
   const acts27 = review27.activities   || [];
 
   const map26 = {};
-  acts26.forEach(a => { map26[`${a.market}||${a.activityName.toLowerCase()}`] = a; });
+  acts26.forEach(a => { map26[`${a.market}||${a.activityName.toLowerCase().trim()}`] = a; });
   const map27 = {};
-  acts27.forEach(a => { map27[`${a.market}||${a.activityName.toLowerCase()}`] = a; });
+  acts27.forEach(a => { map27[`${a.market}||${a.activityName.toLowerCase().trim()}`] = a; });
 
-  const added   = acts27.filter(a => !map26[`${a.market}||${a.activityName.toLowerCase()}`]);
-  const removed = acts26.filter(a => !map27[`${a.market}||${a.activityName.toLowerCase()}`]);
+  const added   = acts27.filter(a => !map26[`${a.market}||${a.activityName.toLowerCase().trim()}`]);
+  const removed = acts26.filter(a => !map27[`${a.market}||${a.activityName.toLowerCase().trim()}`]);
   const changed = [];
 
   Object.entries(map27).forEach(([k, a27]) => {
