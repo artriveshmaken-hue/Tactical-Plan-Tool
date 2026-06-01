@@ -22,7 +22,6 @@
     </div>
     <h1 class="upload-title">Tactical Plan Review Tool</h1>
     <p class="upload-subtitle">Upload the approved 2026 final plan and the 2027 WIP plan to run automated compliance checks and comparison analysis across all markets.</p>
-
     <div class="upload-grid">
       <div class="upload-card" id="card-baseline">
         <div class="upload-card-badge">26</div>
@@ -34,9 +33,7 @@
         <div class="upload-filename" id="fname-baseline">No file selected</div>
         <div class="upload-ok hidden" id="ok-baseline">✓ Loaded</div>
       </div>
-
       <div class="upload-vs">vs</div>
-
       <div class="upload-card" id="card-review">
         <div class="upload-card-badge">27</div>
         <div class="upload-card-title">2027 Review File</div>
@@ -48,11 +45,9 @@
         <div class="upload-ok hidden" id="ok-review">✓ Loaded</div>
       </div>
     </div>
-
     <button id="btn-analyze" class="btn-analyze" disabled>▶ Run Analysis</button>
     <div class="upload-secure">🔒 All processing happens in your browser — no data is uploaded to any server.</div>
   </div>
-
   <div id="loading-overlay" class="loading-overlay hidden">
     <div class="loading-ring"></div>
     <div class="loading-msg" id="loading-msg">Parsing Tactical Details…</div>
@@ -61,7 +56,6 @@
 
 <!-- ══════════════════════ DASHBOARD ══════════════════════ -->
 <div id="dashboard" class="hidden">
-
   <header class="dash-header">
     <div class="dash-header-left">
       <img src="assets/dct-logo.png" alt="DCT" class="dash-logo">
@@ -77,18 +71,29 @@
   </header>
 
   <nav class="dash-nav">
-    <button class="nav-tab active"           data-view="overview">Overview</button>
-    <button class="nav-tab"                  data-view="comparison">2026 vs 2027</button>
-    <button class="nav-tab"                  data-view="activities">Activities</button>
-    <button class="nav-tab"                  data-view="cashflow">Cashflow</button>
-    <button class="nav-tab"                  data-view="market">Market Deep Dive</button>
-    <button class="nav-tab"                  data-view="owners">Owners</button>
+    <button class="nav-tab active"            data-view="overview">Overview</button>
+    <button class="nav-tab"                   data-view="comparison">2026 vs 2027</button>
+    <button class="nav-tab"                   data-view="activities">Activities</button>
+    <button class="nav-tab"                   data-view="cashflow">Cashflow</button>
+    <button class="nav-tab"                   data-view="market">Market Deep Dive</button>
+    <button class="nav-tab"                   data-view="owners">Owners</button>
     <button class="nav-tab nav-tab-violations" data-view="violations">
       Rule Violations <span class="nav-pill" id="nav-viol-count">0</span>
     </button>
   </nav>
 
   <div class="filter-bar">
+    <div class="flt-item">
+      <label class="flt-label">Region</label>
+      <select id="flt-region" class="flt-select">
+        <option value="">All Regions</option>
+        <option value="Europe & CIS">Europe &amp; CIS</option>
+        <option value="APAC">APAC</option>
+        <option value="GCC">GCC</option>
+        <option value="UK & US">UK &amp; US</option>
+        <option value="PR">PR</option>
+      </select>
+    </div>
     <div class="flt-item">
       <label class="flt-label">Market</label>
       <select id="flt-market" class="flt-select"><option value="">All Markets</option></select>
