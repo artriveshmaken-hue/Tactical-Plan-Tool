@@ -6,30 +6,26 @@
   <title>DCT Abu Dhabi — Tactical Plan Review 2027</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=IBM+Plex+Sans:ital,wght@0,300;0,400;0,500;0,600;1,300&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 </head>
 <body>
 
-<!-- ══════════════════════ UPLOAD SCREEN ══════════════════ -->
+<!-- UPLOAD -->
 <div id="upload-screen">
   <div class="upload-bg"></div>
   <div class="upload-container">
-    <div class="upload-logo-row">
-      <img src="assets/dct-logo.png" alt="Department of Culture and Tourism — Abu Dhabi" class="upload-logo">
-    </div>
+    <div class="upload-logo-row"><img src="assets/dct-logo.png" alt="DCT Abu Dhabi" class="upload-logo"></div>
     <h1 class="upload-title">Tactical Plan Review Tool</h1>
-    <p class="upload-subtitle">Upload the approved 2026 final plan and the 2027 WIP plan to run automated compliance checks and comparison analysis across all markets.</p>
+    <p class="upload-subtitle">Upload the 2026 approved baseline and the 2027 review file to run automated compliance checks and market-by-market comparison.</p>
     <div class="upload-grid">
       <div class="upload-card" id="card-baseline">
         <div class="upload-card-badge">26</div>
         <div class="upload-card-title">2026 Final Plan</div>
-        <div class="upload-card-desc">Approved baseline — uploaded once per review cycle</div>
-        <label class="upload-btn" for="input-baseline">Choose File
-          <input type="file" id="input-baseline" accept=".xlsx,.xls" hidden>
-        </label>
+        <div class="upload-card-desc">Approved baseline — upload once per cycle</div>
+        <label class="upload-btn" for="input-baseline">Choose File<input type="file" id="input-baseline" accept=".xlsx,.xls" hidden></label>
         <div class="upload-filename" id="fname-baseline">No file selected</div>
         <div class="upload-ok hidden" id="ok-baseline">✓ Loaded</div>
       </div>
@@ -37,24 +33,22 @@
       <div class="upload-card" id="card-review">
         <div class="upload-card-badge">27</div>
         <div class="upload-card-title">2027 Review File</div>
-        <div class="upload-card-desc">Current WIP — re-upload for each new review round</div>
-        <label class="upload-btn" for="input-review">Choose File
-          <input type="file" id="input-review" accept=".xlsx,.xls" hidden>
-        </label>
+        <div class="upload-card-desc">Current WIP — re-upload each round</div>
+        <label class="upload-btn" for="input-review">Choose File<input type="file" id="input-review" accept=".xlsx,.xls" hidden></label>
         <div class="upload-filename" id="fname-review">No file selected</div>
         <div class="upload-ok hidden" id="ok-review">✓ Loaded</div>
       </div>
     </div>
     <button id="btn-analyze" class="btn-analyze" disabled>▶ Run Analysis</button>
-    <div class="upload-secure">🔒 All processing happens in your browser — no data is uploaded to any server.</div>
+    <div class="upload-secure">🔒 All processing happens in your browser — no data is sent anywhere.</div>
   </div>
   <div id="loading-overlay" class="loading-overlay hidden">
     <div class="loading-ring"></div>
-    <div class="loading-msg" id="loading-msg">Parsing Tactical Details…</div>
+    <div class="loading-msg" id="loading-msg">Parsing data…</div>
   </div>
 </div>
 
-<!-- ══════════════════════ DASHBOARD ══════════════════════ -->
+<!-- DASHBOARD -->
 <div id="dashboard" class="hidden">
   <header class="dash-header">
     <div class="dash-header-left">
@@ -71,17 +65,22 @@
   </header>
 
   <nav class="dash-nav">
-    <button class="nav-tab active"            data-view="overview">Overview</button>
-    <button class="nav-tab"                   data-view="comparison">2026 vs 2027</button>
-    <button class="nav-tab"                   data-view="activities">Activities</button>
-    <button class="nav-tab"                   data-view="cashflow">Cashflow</button>
-    <button class="nav-tab"                   data-view="market">Market Deep Dive</button>
-    <button class="nav-tab"                   data-view="owners">Owners</button>
+    <button class="nav-tab active" data-view="overview">
+      <span class="nav-icon">◎</span> Overview
+    </button>
+    <button class="nav-tab" data-view="market">
+      <span class="nav-icon">⊞</span> Market Review
+    </button>
+    <button class="nav-tab" data-view="calendar">
+      <span class="nav-icon">📅</span> Annual Calendar
+    </button>
     <button class="nav-tab nav-tab-violations" data-view="violations">
-      Rule Violations <span class="nav-pill" id="nav-viol-count">0</span>
+      <span class="nav-icon">⚑</span> Rule Violations
+      <span class="nav-pill" id="nav-viol-count">0</span>
     </button>
   </nav>
 
+  <!-- Global filters -->
   <div class="filter-bar">
     <div class="flt-item">
       <label class="flt-label">Region</label>
@@ -106,13 +105,13 @@
       <label class="flt-label">Priority</label>
       <select id="flt-priority" class="flt-select">
         <option value="">All</option>
-        <option value="1">Priority 1</option>
-        <option value="2">Priority 2</option>
-        <option value="3">Priority 3</option>
+        <option value="1">P1 — Committed</option>
+        <option value="2">P2 — High</option>
+        <option value="3">P3 — Low</option>
       </select>
     </div>
     <div class="flt-item">
-      <label class="flt-label">Lock Status</label>
+      <label class="flt-label">Lock</label>
       <select id="flt-lock" class="flt-select">
         <option value="">All</option>
         <option value="Locked">Locked</option>
