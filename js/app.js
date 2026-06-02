@@ -2,9 +2,7 @@
 const APP={baseline:null,review:null,violations:[],comparison:null,activeView:'overview',filters:{region:'',market:'',type:'',priority:'',lock:''},allMarkets:[]};
 const $=id=>document.getElementById(id);
 
-const REGIONS={'Europe & CIS':['France','Germany','Italy','Spain','Poland','Romania','Belgium','Netherlands','Russia','Armenia','Kazakhstan','Uzbekistan'],'APAC':['India','China','Japan','Korea','South Korea'],'GCC':['KSA','Saudi Arabia','Kuwait','Egypt','Domestic'],'UK & US':['UK','United Kingdom','USA','United States','Canada'],'PR':['PR','PR & Marketing','B2B PR and Marketing']};
 
-function getRegion(market){if(!market)return'Other';for(const[r,ms]of Object.entries(REGIONS)){if(ms.some(m=>market.toLowerCase().includes(m.toLowerCase())||m.toLowerCase().includes(market.toLowerCase())))return r;}return'Other';}
 
 function setupUpload(){
   let bF=null,rF=null;

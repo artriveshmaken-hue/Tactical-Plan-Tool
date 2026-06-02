@@ -724,7 +724,6 @@ function onCommentInput(el){
   el.classList.toggle('inp-required',APP.violations[el.dataset.idx].status==='action-required'&&!el.value);
 }
 
-function fmtShort(n){if(!n||n===0)return'0';const a=Math.abs(n);if(a>=1e6)return(n/1e6).toFixed(1)+'M';if(a>=1e3)return(n/1e3).toFixed(0)+'K';return Math.round(n).toString();}
 
 /* ══════════════════════════════════════════════════════════
    VIEW — ANNUAL CALENDAR 2027
