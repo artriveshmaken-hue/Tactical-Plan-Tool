@@ -224,3 +224,23 @@ table.cal-table .cal-detail-row td{padding:0;border:none}
 .cal-4{background:#1E3A8A;color:white;font-weight:700;cursor:pointer}
 .cal-q4-warn{background:#FEE2E2!important;color:var(--red)!important;font-weight:700}
 td.cal-cell:hover{filter:brightness(1.1);cursor:pointer}
+
+/* ── MARKET SUMMARY PANEL ───────────────────────────────── */
+.mkt-summary-panel{display:flex;align-items:center;gap:0;background:white;border:1px solid var(--g200);border-radius:var(--r-lg);overflow:hidden;box-shadow:var(--shadow-sm)}
+.mkt-sum-block{padding:18px 22px;flex:1;text-align:center;border-right:1px solid var(--g200)}
+.mkt-sum-block:last-child{border-right:none}
+.mkt-sum-label{font-size:.68rem;font-weight:600;color:var(--g400);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.mkt-sum-value{font-family:'Syne',sans-serif;font-size:1.55rem;font-weight:700;color:var(--navy);line-height:1.1}
+.mkt-sum-sub{font-size:.72rem;color:var(--g400);margin-top:3px}
+.mkt-sum-arrow{font-size:1.4rem;color:var(--g200);padding:0 6px;flex-shrink:0}
+.mkt-sum-divider{width:1px;background:var(--g200);align-self:stretch;flex-shrink:0}
+.sum-up .mkt-sum-value{color:var(--red)}
+.sum-down .mkt-sum-value{color:var(--green)}
+.sum-change-up{background:#FFF5F5}
+.sum-change-up .mkt-sum-value{color:var(--red)}
+.sum-change-down{background:#F0FDF4}
+.sum-change-down .mkt-sum-value{color:var(--green)}
+.sum-viol{background:#FFF5F5}
+.sum-viol .mkt-sum-value{color:var(--red)}
+.sum-ok{background:#F0FDF4}
+.sum-ok .mkt-sum-value{color:var(--green)}
