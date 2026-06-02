@@ -285,6 +285,89 @@ function renderMarket(state, sel){
       </div>
     </div>
 
+
+    <!-- Market Summary Panel -->
+    <div class="mkt-summary-panel mb20">
+      <div class="mkt-sum-block">
+        <div class="mkt-sum-label">2026 Total Budget</div>
+        <div class="mkt-sum-value">${fmtShort(tot26)}</div>
+        <div class="mkt-sum-sub">AED</div>
+      </div>
+      <div class="mkt-sum-arrow">→</div>
+      <div class="mkt-sum-block ${tot27>tot26?'sum-up':'sum-down'}">
+        <div class="mkt-sum-label">2027 Total Budget</div>
+        <div class="mkt-sum-value">${fmtShort(tot27)}</div>
+        <div class="mkt-sum-sub">AED</div>
+      </div>
+      <div class="mkt-sum-block ${tot27>tot26?'sum-change-up':'sum-change-down'}">
+        <div class="mkt-sum-label">Budget Change</div>
+        <div class="mkt-sum-value">${tot27>=tot26?'+':''}${fmtShort(tot27-tot26)}</div>
+        <div class="mkt-sum-sub">${tot26?((tot27-tot26)/tot26*100).toFixed(1)+'%':'new market'}</div>
+      </div>
+      <div class="mkt-sum-divider"></div>
+      <div class="mkt-sum-block">
+        <div class="mkt-sum-label">Activities</div>
+        <div class="mkt-sum-value">${m27.length}</div>
+        <div class="mkt-sum-sub">2027 &nbsp;|&nbsp; ${m26.length} in 2026</div>
+      </div>
+      <div class="mkt-sum-block ${activeViols.length>0?'sum-viol':'sum-ok'}">
+        <div class="mkt-sum-label">Active Violations</div>
+        <div class="mkt-sum-value">${activeViols.length}</div>
+        <div class="mkt-sum-sub">${mktViols.filter(v=>v.severity==='HIGH'&&v.status!=='accepted').length} HIGH · ${mktViols.filter(v=>v.severity==='MEDIUM'&&v.status!=='accepted').length} MED</div>
+      </div>
+    </div>
+
+    <!-- Budget Change by Activity Type -->
+    <div class="grid2 mb20">
+      <div class="card">
+        <div class="section-hd" style="font-size:.88rem">Budget by Activity Type — 2026 vs 2027</div>
+        <div class="tbl-scroll"><table class="dt">
+          <thead><tr>
+            <th>Activity Type</th>
+            <th class="th-r">2026 (AED)</th>
+            <th class="th-r">2027 (AED)</th>
+            <th class="th-r">Change</th>
+            <th class="th-r">Change %</th>
+          </tr></thead>
+          <tbody>
+            ${allTypeKeys.filter(t=>t&&t!=='undefined').map(t=>{
+              const v26=typeMap26[t]||0, v27=typeMap27[t]||0, diff=v27-v26;
+              const pct=v26?((diff/v26)*100).toFixed(1)+'%':'new';
+              return`<tr class="${diff>50000?'row-warn':diff<-50000?'row-removed':''}">
+                <td><span class="type-chip">${t}</span></td>
+                <td class="td-r t-mono">${v26?fmtNum(v26):'—'}</td>
+                <td class="td-r t-mono">${v27?fmtNum(v27):'—'}</td>
+                <td class="td-r t-mono ${diff>0?'t-red':diff<0?'t-green':''}">${diff?(diff>=0?'+':'')+fmtNum(diff):'—'}</td>
+                <td class="td-r ${diff>0?'t-red':diff<0?'t-green':''}">${v26||v27?pct:'—'}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table></div>
+      </div>
+      <div class="card">
+        <div class="section-hd" style="font-size:.88rem">Violations Summary — ${mkt}</div>
+        ${activeViols.length===0
+          ? '<div style="padding:20px;text-align:center;color:var(--green);font-size:.88rem">✅ No active violations for this market</div>'
+          : `<div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+              ${['HIGH','MEDIUM','LOW'].map(sev=>{
+                const cnt=activeViols.filter(v=>v.severity===sev).length;
+                return cnt>0?`<div class="kpi-card kpi-${sev==='HIGH'?'danger':sev==='MEDIUM'?'warning':'info'}" style="min-width:100px;padding:10px 14px">
+                  <div class="kpi-label">${sev}</div>
+                  <div class="kpi-value" style="font-size:1.2rem">${cnt}</div>
+                </div>`:'';
+              }).join('')}
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              ${activeViols.slice(0,8).map(v=>`<div style="display:flex;align-items:flex-start;gap:8px;font-size:.78rem;padding:6px 10px;background:var(--g50);border-radius:6px;border-left:3px solid ${v.severity==='HIGH'?'var(--red)':v.severity==='MEDIUM'?'var(--amber)':'var(--g200)'}">
+                <code style="font-size:.7rem;color:var(--blue);white-space:nowrap;flex-shrink:0">${v.ruleId}</code>
+                <span style="color:var(--g700)">${v.detail}</span>
+              </div>`).join('')}
+              ${activeViols.length>8?`<div style="font-size:.76rem;color:var(--g400);text-align:center;padding:4px">+${activeViols.length-8} more — see Violations tab</div>`:''}
+            </div>`
+        }
+      </div>
+    </div>
+
     <!-- KPI row -->
     <div class="grid5 mb20">
       <div class="kpi-card kpi-info"><div class="kpi-label">2027 Cashflow</div><div class="kpi-value">${fmtShort(tot27)}</div><div class="kpi-sub">AED</div></div>
